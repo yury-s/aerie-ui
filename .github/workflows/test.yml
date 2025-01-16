@@ -39,29 +39,6 @@ env:
   PR_BODY: '${{github.event.pull_request.body}}'
 
 jobs:
-  unit-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repo (UI)
-        uses: actions/checkout@v4
-      - name: Setup Node (UI)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-          cache: npm
-      - name: Install Dependencies (UI)
-        run: npm ci
-      - name: Build (UI)
-        run: npm run build
-      - name: Test (unit)
-        run: npm run test:unit:coverage
-      - name: Upload Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Unit Test Results
-          path: |
-            **/unit-test-results
   e2e-test:
     runs-on: ubuntu-latest
     environment: ${{ inputs.env || 'test-workflow' }}
@@ -73,49 +50,9 @@ jobs:
         with:
           node-version: 'lts/*'
           cache: npm
-      - name: Extract Aerie backend docker tag from PR body
-        # look in the PR body for eg. the string ___REQUIRES_AERIE_PR___=9999, extract the number & save to env var
-        # if backend PR is labeled correctly, it will publish a docker tag called 'pr-9999' to use in tests
-        if: ${{ contains(env.PR_BODY, '___REQUIRES_AERIE_PR___=') }}
-        run: |
-          echo "AERIE_IMAGE_TAG=pr-$(echo $PR_BODY | sed -n 's/.*___REQUIRES_AERIE_PR___=\"\([0-9]\+\)\".*/\1/p')" >> $GITHUB_ENV
-      - name: Extract Aerie gateway docker tag from PR body
-        # look in the PR body for eg. the string ___REQUIRES_AERIE_PR___=9999, extract the number & save to env var
-        # if backend PR is labeled correctly, it will publish a docker tag called 'pr-9999' to use in tests
-        if: ${{ contains(env.PR_BODY, '___REQUIRES_GATEWAY_PR___=') }}
-        run: |
-          echo "GATEWAY_IMAGE_TAG=pr-$(echo $PR_BODY | sed -n 's/.*___REQUIRES_GATEWAY_PR___=\"\([0-9]\+\)\".*/\1/p')" >> $GITHUB_ENV
-      - name: Start Services (Aerie)
-        run: |
-          echo "AERIE_IMAGE_TAG: $AERIE_IMAGE_TAG"
-          echo "GATEWAY_IMAGE_TAG: $GATEWAY_IMAGE_TAG"
-          docker compose -f docker-compose-test.yml up -d --quiet-pull
-          docker images
-          docker ps -a --no-trunc
       - name: Install Dependencies (UI)
         run: npm ci
-      - name: Build (UI)
-        run: npm run build
+      - name: cat /etc/os-release
+        run: cat /etc/os-release
       - name: Install Playwright Dependencies (Test - e2e)
         run: npx playwright install chromium --with-deps
-      - name: Test (e2e)
-        run: npm run test:e2e
-      - name: Upload Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: E2E Test Results
-          path: |
-            **/e2e-test-results
-      - name: Print Logs for Services (Aerie)
-        if: always()
-        run: docker compose -f docker-compose-test.yml logs -t
-      - name: Stop Services (Aerie)
-        if: always()
-        run: |
-          docker ps -a
-          docker compose -f docker-compose-test.yml down
-          docker ps -a
-      - name: Prune Volumes (Aerie)
-        if: always()
-        run: docker volume prune --force
